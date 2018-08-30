@@ -1,10 +1,16 @@
-import mxnet as mx
 from mxnet import nd, gluon
 
 
 class CnnTextClassifier(gluon.nn.HybridSequential):
 
     def __init__(self, num_filters, fully_connected, dropout, num_outputs):
+        """
+
+        :param num_filters:
+        :param fully_connected:
+        :param dropout:
+        :param num_outputs:
+        """
         super().__init__()
         with self.name_scope():
             self.conv1 = gluon.nn.Conv1D(channels=num_filters, kernel_size=7, activation='relu')
