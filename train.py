@@ -42,14 +42,13 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     :param kwargs:
     :return:
     """
-    train_df = pd.read_pickle(channel_input_dirs['train'])[:1000]
+    train_df = pd.read_pickle(channel_input_dirs['train'])
     val_df = pd.read_pickle(channel_input_dirs['val'])
 
     alph = list("abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+ =<>()[]{}")
 
     ctx = mx.gpu() if num_gpus > 0 else mx.cpu()
-    default_batch_size = 100
-    batch_size = hyperparameters.get('batch_size', default_batch_size)
+    batch_size = hyperparameters.get('batch_size', 100)
 
     train_iter, val_iter = build_dataloaders(train_df=train_df,
                                              val_df=val_df,
@@ -64,7 +63,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                             num_outputs=len(train_df.intent.unique()))
 
     # convert network from imperitive to symbolic for increased training speed
-    # net.hybridize()
+    net.hybridize()
 
     # initialize weights depending on layer type
     net.collect_params().initialize(mx.init.Normal(sigma=.01), ctx=ctx)
