@@ -15,14 +15,12 @@ class UtteranceDataset(gluon.data.ArrayDataset):
         self.label_to_index = {label: index for index, label in enumerate(set(labels))}
 
     def encode(self, text):
-        encoded = np.zeros([len(self.alphabet), self.feature_len], dtype='float32')
-        review = text.lower()[:self.feature_len - 1:-1]
+        encoded = np.zeros([self.feature_len], dtype='float32')
         i = 0
         for letter in text:
             if i >= self.feature_len:
-                break;
-            if letter in self.char_to_index:
-                encoded[self.char_to_index[letter]][i] = 1
+                break
+            encoded[i] = self.char_to_index.get(letter, -1)
             i += 1
         return encoded
 
@@ -48,6 +46,6 @@ if __name__ == "__main__":
     assert len(dataset) == 100
     for i in range(len(dataset)):
         d, l = dataset[i]
-        assert d.shape == (len(alph), max_chars)
+        assert d.shape == (max_chars,)
         assert type(l) is int
     print("Unit-test success!")

@@ -33,7 +33,7 @@ def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num
     return train_iter, test_iter
 
 
-def evaluate_accuracy(data_iterator, net, ctx):
+def evaluate_accuracy(data_iterator, net):
     """
 
     :param data_iterator:
@@ -42,8 +42,6 @@ def evaluate_accuracy(data_iterator, net, ctx):
     """
     acc = mx.metric.Accuracy()
     for i, (data, label) in enumerate(data_iterator):
-        data = data.as_in_context(ctx)
-        label = label.as_in_context(ctx)
         output = net(data)
         predictions = nd.argmax(output, axis=1)
         acc.update(preds=predictions, labels=label)
@@ -60,7 +58,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     :return:
     """
     logging.info("Reading in data")
-    train_df = pd.read_pickle(channel_input_dirs['train'])
+    train_df = pd.read_pickle(channel_input_dirs['train'])[:1000]
     val_df = pd.read_pickle(channel_input_dirs['val'])
 
     alph = list("abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+ =<>()[]{}")
@@ -77,10 +75,12 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                                              num_workers=multiprocessing.cpu_count())
 
     logging.info("Defining network architecture")
-    net = CnnTextClassifier(num_filters=hyperparameters.get('num_filters', 10),
-                            fully_connected=hyperparameters.get('fully_connected', 100),
+    net = CnnTextClassifier(vocab_size=len(alph),
+                            embed_size=hyperparameters.get('embed_size', 16),
                             dropout=hyperparameters.get('dropout', 0.02),
-                            num_outputs=len(train_df.intent.unique()))
+                            num_label=len(train_df.intent.unique()),
+                            filters=hyperparameters.get('filters', [64, 128, 256, 512]),
+                            blocks=hyperparameters.get('blocks', [1, 1, 1, 1]))
 
     # convert network from imperitive to symbolic for increased training speed
     if hyperparameters.get('hybridize', True):
@@ -115,12 +115,12 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
             weight_updates += 1
             if weight_updates % (updates_per_epoch // hyperparameters.get('epoch_batch_progress', 5)) == 0:
                 logging.info("Epoch {}: Batches complete {}/{}".format(e, weight_updates, updates_per_epoch))
-        train_accuracy = evaluate_accuracy(train_iter, net, ctx)
-        val_accuracy = evaluate_accuracy(val_iter, net, ctx)
+        train_accuracy = evaluate_accuracy(train_iter, net)
+        val_accuracy = evaluate_accuracy(val_iter, net)
         accuracies.append(val_accuracy)
         logging.info("Epoch {}: Train Loss = {:.4} Train Accuracy = {:.4} Validation Accuracy = {:.4}".
                      format(e, epoch_loss / weight_updates, train_accuracy, val_accuracy))
-        logging.info("Epoch {}: Best Validation Accuracy = {:.4}".format(max(accuracies)))
+        logging.info("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))
 
 
 if __name__ == "__main__":
