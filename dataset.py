@@ -4,10 +4,13 @@ import random
 
 
 class UtteranceDataset(gluon.data.ArrayDataset):
-    """
-    preprocesses text
-    """
     def __init__(self, data, labels, alphabet, feature_len):
+        """
+        :param data: list of list of text strings
+        :param labels: list of integer labels
+        :param alphabet: list of characters
+        :param feature_len: max characters per text string
+        """
         super().__init__(data, labels)
         self.alphabet = alphabet
         self.feature_len = feature_len
@@ -15,6 +18,11 @@ class UtteranceDataset(gluon.data.ArrayDataset):
         self.label_to_index = {label: index for index, label in enumerate(set(labels))}
 
     def encode(self, text):
+        """
+        index character data
+        :param text: string to index
+        :return: list of int
+        """
         encoded = np.zeros([self.feature_len], dtype='float32')
         i = 0
         for letter in text:

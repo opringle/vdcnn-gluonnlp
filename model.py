@@ -2,13 +2,9 @@ from mxnet import nd, gluon
 
 
 class ConvBlock(gluon.nn.HybridSequential):
-    """
-    Convolutional block as described in https://arxiv.org/pdf/1606.01781.pdf
-    """
     def __init__(self, num_filters):
         """
-
-        :param num_filters:
+        :param num_filters: number of filters in convolutional block
         """
         super().__init__()
         with self.name_scope():
@@ -21,14 +17,10 @@ class ConvBlock(gluon.nn.HybridSequential):
 
 
 class MultiConvBlock(gluon.nn.HybridSequential):
-    """
-
-    """
     def __init__(self, num_filters, num_blocks):
         """
-
-        :param num_filters:
-        :param num_blocks:
+        :param num_filters: number of filters in each block
+        :param num_blocks: number of blocks in sequence
         """
         super().__init__()
         with self.name_scope():
@@ -37,14 +29,10 @@ class MultiConvBlock(gluon.nn.HybridSequential):
 
 
 class EmbedBlock(gluon.nn.HybridSequential):
-    """
-
-    """
     def __init__(self, input_dim, output_dim):
         """
-
-        :param input_dim:
-        :param output_dim:
+        :param input_dim: number of rows in lookup table
+        :param output_dim: number of columns in lookup table
         """
         super().__init__()
         with self.name_scope():
@@ -52,31 +40,29 @@ class EmbedBlock(gluon.nn.HybridSequential):
 
     def forward(self, x):
         """
-
-        :param x:
-        :return:
+        :param x: mxnet ndarray of data
+        :return: mxnet ndarray of data
         """
         return self.embed(x).transpose(axes=(0, 2, 1))
 
+
 class CnnTextClassifier(gluon.nn.HybridSequential):
     """
-
+    Deep convnet for text classification inspired by https://arxiv.org/pdf/1606.01781.pdf
     """
     def __init__(self, vocab_size, embed_size, dropout, num_label, filters, blocks):
         """
-
-        :param vocab_size:
-        :param embed_size:
-        :param dropout:
-        :param num_label:
-        :param filters:
-        :param blocks:
+        :param vocab_size: number of rows in lookup table
+        :param embed_size: number of columns in lookup table
+        :param dropout: dropout probability for output from final conv layer
+        :param num_label: number of neurons in final network layer
+        :param filters: list of filter numbers per convolutional block
+        :param blocks: list of block numbers between pooling stages
         """
         super().__init__()
         with self.name_scope():
             self.add(EmbedBlock(input_dim=vocab_size, output_dim=embed_size))
             self.add(gluon.nn.Conv1D(channels=64, kernel_size=3, strides=1, padding=1, activation=None))
-
             for i, n_blocks in enumerate(blocks):
                 self.add(MultiConvBlock(num_filters=filters[i], num_blocks=n_blocks))
                 if i != len(blocks) - 1:

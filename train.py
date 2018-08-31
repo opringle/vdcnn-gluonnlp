@@ -10,14 +10,13 @@ import multiprocessing
 
 def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num_workers):
     """
-
-    :param train_df:
-    :param val_df:
-    :param alphabet:
-    :param max_utt_chars:
-    :param batch_size:
-    :param num_workers:
-    :return:
+    :param train_df: pandas dataframe of training data
+    :param val_df: pandas dataframe of validation data
+    :param alphabet: list of characters to have a corresponding embedding in the lookup table
+    :param max_utt_chars: slice/pad text to this many characters
+    :param batch_size: number of training examples per network parameter update
+    :param num_workers: number of cpu threads to preprocess data on
+    :return: train & val data loaders for network
     """
     train_dataset = UtteranceDataset(data=train_df.utterance.values, labels=train_df.intent.values, alphabet=alphabet,
                                      feature_len=max_utt_chars)
@@ -33,33 +32,58 @@ def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num
     return train_iter, test_iter
 
 
-def evaluate_accuracy(data_iterator, net):
+def evaluate_accuracy(data_iterator, net, ctx):
     """
-
-    :param data_iterator:
-    :param net:
-    :return:
+    :param data_iterator: gluon data loader
+    :param net: gluon hybrid sequential block
+    :return: network accuracy on data
     """
     acc = mx.metric.Accuracy()
     for i, (data, label) in enumerate(data_iterator):
+        data = data.as_in_context(ctx)
+        label = label.as_in_context(ctx)
         output = net(data)
         predictions = nd.argmax(output, axis=1)
         acc.update(preds=predictions, labels=label)
     return acc.get()[1]
 
 
+class TriangularSchedule():
+    def __init__(self, min_lr, max_lr, cycle_length, inc_fraction=0.5):
+        """
+        min_lr: lower bound for learning rate (float)
+        max_lr: upper bound for learning rate (float)
+        cycle_length: iterations between start and finish (int)
+        inc_fraction: fraction of iterations spent in increasing stage (float)
+        """
+        self.min_lr = min_lr
+        self.max_lr = max_lr
+        self.cycle_length = cycle_length
+        self.inc_fraction = inc_fraction
+
+    def __call__(self, iteration):
+        if iteration <= self.cycle_length * self.inc_fraction:
+            unit_cycle = iteration * 1 / (self.cycle_length * self.inc_fraction)
+        elif iteration <= self.cycle_length:
+            unit_cycle = (self.cycle_length - iteration) * 1 / (self.cycle_length * (1 - self.inc_fraction))
+        else:
+            unit_cycle = 0
+        adjusted_cycle = (unit_cycle * (self.max_lr - self.min_lr)) + self.min_lr
+        return adjusted_cycle
+
+
 def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     """
-
-    :param hyperparameters:
-    :param channel_input_dirs:
-    :param num_gpus:
-    :param kwargs:
-    :return:
+    :param hyperparameters: dict of network hyperparams
+    :param channel_input_dirs: dict of paths to train and val data
+    :param num_gpus: number of gpus to distribute training on
+    :return: gluon neural network
     """
     logging.info("Reading in data")
-    train_df = pd.read_pickle(channel_input_dirs['train'])[:1000]
+    train_df = pd.read_pickle(channel_input_dirs['train'])
+    logging.info("Loaded {} train records".format(train_df.shape[0]))
     val_df = pd.read_pickle(channel_input_dirs['val'])
+    logging.info("Loaded {} validation records".format(val_df.shape[0]))
 
     alph = list("abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+ =<>()[]{}")
 
@@ -77,28 +101,33 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     logging.info("Defining network architecture")
     net = CnnTextClassifier(vocab_size=len(alph),
                             embed_size=hyperparameters.get('embed_size', 16),
-                            dropout=hyperparameters.get('dropout', 0.02),
+                            dropout=hyperparameters.get('dropout', 0.2),
                             num_label=len(train_df.intent.unique()),
                             filters=hyperparameters.get('filters', [64, 128, 256, 512]),
                             blocks=hyperparameters.get('blocks', [1, 1, 1, 1]))
 
-    # convert network from imperitive to symbolic for increased training speed
-    if hyperparameters.get('hybridize', True):
-        logging.info("Hybridizing network")
+    if not hyperparameters.get('no_hybridize', False):
+        logging.info("Hybridizing network to convert from imperitive to symbolic for increased training speed")
         net.hybridize()
 
-    # initialize weights depending on layer type
     logging.info("Initializing network parameters")
-    net.collect_params().initialize(mx.init.Normal(sigma=.01), ctx=ctx)
+    net.collect_params().initialize(mx.init.Xavier(magnitude=2.24), ctx=ctx)
+
+    logging.info("Defining triangular learning rate schedule")
+    updates_per_epoch = train_df.shape[0] // batch_size
+    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.06),
+                                  max_lr=hyperparameters.get('max_lr', 0.06),
+                                  cycle_length=hyperparameters.get('lr_cycle_epochs', 0.06) * updates_per_epoch,
+                                  inc_fraction=hyperparameters.get('lr_increase_fraction', 0.2))
+
+    optimizer = gluon.Trainer(params=net.collect_params(), optimizer='sgd',
+                              optimizer_params={'learning_rate': hyperparameters.get('learning_rate', 0.06),
+                                                'momentum': hyperparameters.get('momentum', 0.9),
+                                                'lr_scheduler': schedule})
 
     sm_loss = gluon.loss.SoftmaxCrossEntropyLoss()
 
-    optimizer = gluon.Trainer(params=net.collect_params(), optimizer='sgd',
-                              optimizer_params={'learning_rate': hyperparameters.get('learning_rate', 0.1),
-                                                'momentum': hyperparameters.get('momentum', 0.9)})
-
     logging.info("Training")
-    updates_per_epoch = train_df.shape[0] // batch_size
     accuracies = []
     for e in range(hyperparameters.get('epochs', 10)):
         epoch_loss = 0
@@ -110,17 +139,18 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                 pred = net(data)
                 loss = sm_loss(pred, label)
             loss.backward()
-            optimizer.step(hyperparameters.get('batch_size', batch_size))
-            epoch_loss += nd.sum(loss).asscalar()
+            optimizer.step(data.shape[0])
+            epoch_loss += nd.mean(loss).asscalar()
             weight_updates += 1
             if weight_updates % (updates_per_epoch // hyperparameters.get('epoch_batch_progress', 5)) == 0:
                 logging.info("Epoch {}: Batches complete {}/{}".format(e, weight_updates, updates_per_epoch))
-        train_accuracy = evaluate_accuracy(train_iter, net)
-        val_accuracy = evaluate_accuracy(val_iter, net)
+        train_accuracy = evaluate_accuracy(train_iter, net, ctx)
+        val_accuracy = evaluate_accuracy(val_iter, net, ctx)
         accuracies.append(val_accuracy)
         logging.info("Epoch {}: Train Loss = {:.4} Train Accuracy = {:.4} Validation Accuracy = {:.4}".
                      format(e, epoch_loss / weight_updates, train_accuracy, val_accuracy))
         logging.info("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))
+    return net
 
 
 if __name__ == "__main__":
@@ -141,7 +171,7 @@ if __name__ == "__main__":
     group = parser.add_argument_group('Computation arguments')
     parser.add_argument('--gpus', type=int, default=0,
                         help='num of gpus to distribute  model training on. 0 for cpu')
-    parser.add_argument('--hybridize', type=bool,
+    parser.add_argument('--no-hybridize', action='store_true',
                         help='use symbolic network graph for increased computational eff')
 
     # Logging
@@ -167,8 +197,14 @@ if __name__ == "__main__":
     group = parser.add_argument_group('Optimization arguments')
     group.add_argument('--epochs', type=int,
                        help='num of times to loop through training data')
-    group.add_argument('--learning-rate', type=float,
-                       help='optimizer learning rate')
+    group.add_argument('--min-lr', type=float,
+                       help='min learning rate in cycle')
+    group.add_argument('--max-lr', type=float,
+                       help='max learning rate in cycle')
+    group.add_argument('--lr-cycle-epochs', type=float,
+                       help='number of epochs to increase then decrease learning rate over')
+    group.add_argument('--lr-increase-fraction', type=float,
+                       help='ratio between lr increase & decrease rates')
     group.add_argument('--momentum', type=float,
                        help='optimizer momentum')
     group.add_argument('--batch-size', type=int,
@@ -176,4 +212,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     hyp = {k: v for k, v in vars(args).items() if v is not None}
-    train(hyperparameters=hyp, channel_input_dirs={'train': args.train, 'val': args.val}, num_gpus=args.gpus)
+    net = train(hyperparameters=hyp, channel_input_dirs={'train': args.train, 'val': args.val}, num_gpus=args.gpus)
