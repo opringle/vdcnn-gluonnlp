@@ -91,7 +91,7 @@ class CnnTextClassifier(gluon.nn.HybridSequential):
     """
     Deep convnet for text classification inspired by https://arxiv.org/pdf/1606.01781.pdf
     """
-    def __init__(self, vocab_size, embed_size, dropout, num_label, filters, blocks, fc_size):
+    def __init__(self, vocab_size, embed_size, dropout, num_label, temp_conv_filters, blocks):
         """
         :param vocab_size: number of rows in lookup table
         :param embed_size: number of columns in lookup table
@@ -103,15 +103,12 @@ class CnnTextClassifier(gluon.nn.HybridSequential):
         super().__init__()
         with self.name_scope():
             self.add(EmbedBlock(input_dim=vocab_size, output_dim=embed_size))
-            self.add(gluon.nn.Conv1D(channels=64, kernel_size=3, strides=1, padding=1, activation=None))
+            self.add(gluon.nn.Conv1D(channels=temp_conv_filters, kernel_size=3, strides=1, padding=1, activation=None))
             for i, n_blocks in enumerate(blocks):
-                self.add(MultiConvBlock(num_filters=filters[i], num_blocks=n_blocks))
+                self.add(MultiConvBlock(num_filters=temp_conv_filters*(2**i), num_blocks=n_blocks))
                 if i != len(blocks) - 1:
                     self.add(gluon.nn.MaxPool1D(pool_size=3, strides=2, padding=1))
             self.add(PoolBlock())
-            # self.add(gluon.nn.Dense(units=fc_size))
-            # self.add(gluon.nn.Dropout(rate=dropout))
-            # self.add(gluon.nn.Dense(units=fc_size))
             self.add(gluon.nn.Dropout(rate=dropout))
             self.add(gluon.nn.Dense(units=num_label))
 
@@ -142,9 +139,8 @@ if __name__ == "__main__":
                             embed_size=16,
                             dropout=0.5,
                             num_label=5,
-                            filters=[64, 128, 256, 512],
-                            blocks=[2, 3, 2, 1],
-                            fc_size=2048)
+                            temp_conv_filters=64,
+                            blocks=[2, 3, 2, 1])
 
     x = nd.random.uniform(shape=(128, 1024))
     net.initialize()

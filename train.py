@@ -111,9 +111,8 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                             embed_size=hyperparameters.get('embed_size', 16),
                             dropout=hyperparameters.get('dropout', 0.2),
                             num_label=len(train_df.intent.unique()),
-                            filters=hyperparameters.get('filters', [64, 128, 256, 512]),
-                            blocks=hyperparameters.get('blocks', [1, 1, 1, 1]),
-                            fc_size=hyperparameters.get('fc_size', 2048))
+                            temp_conv_filters=hyperparameters.get('temp_conv_filters', 64),
+                            blocks=hyperparameters.get('blocks', [1, 1, 1, 1]))
     logging.info("Network architecture: {}".format(net))
 
     if not hyperparameters.get('no_hybridize', False):
@@ -132,8 +131,8 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
 
     optimizer = gluon.Trainer(params=net.collect_params(), optimizer='sgd',
                               optimizer_params={'momentum': hyperparameters.get('momentum', 0.9),
-                                                'lr_scheduler': schedule})
-
+                                                'lr_scheduler': schedule,
+                                                'wd': hyperparameters.get('l2', 0.002)})
     sm_loss = gluon.loss.SoftmaxCrossEntropyLoss()
 
     logging.info("Training for {} epochs".format(hyperparameters.get('epochs', 10)))
@@ -194,8 +193,8 @@ if __name__ == "__main__":
                        help='number of characters per utterance')
     group.add_argument('--embed-size', type=int,
                        help='number of cols in character lookup table')
-    group.add_argument('--filters', nargs='+', type=int,
-                       help='list of number of filters in each block conv layer')
+    group.add_argument('--temp-conv-filters', type=int,
+                       help='number of filters is doubled through each pooling step')
     group.add_argument('--blocks', nargs='+', type=int,
                        help='list of number of blocks between pooling steps')
     group.add_argument('--fc-size', type=int,
@@ -204,6 +203,8 @@ if __name__ == "__main__":
     group = parser.add_argument_group('Regularization arguments')
     group.add_argument('--dropout', type=float,
                        help='dropout probability for fully connected layers')
+    group.add_argument('--l2', type=float,
+                       help='weight regularization penalty')
 
     # Optimizer
     group = parser.add_argument_group('Optimization arguments')
