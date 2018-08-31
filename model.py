@@ -50,7 +50,7 @@ class CnnTextClassifier(gluon.nn.HybridSequential):
     """
     Deep convnet for text classification inspired by https://arxiv.org/pdf/1606.01781.pdf
     """
-    def __init__(self, vocab_size, embed_size, dropout, num_label, filters, blocks):
+    def __init__(self, vocab_size, embed_size, dropout, num_label, filters, blocks, fc_size):
         """
         :param vocab_size: number of rows in lookup table
         :param embed_size: number of columns in lookup table
@@ -67,8 +67,10 @@ class CnnTextClassifier(gluon.nn.HybridSequential):
                 self.add(MultiConvBlock(num_filters=filters[i], num_blocks=n_blocks))
                 if i != len(blocks) - 1:
                     self.add(gluon.nn.MaxPool1D(pool_size=3, strides=2, padding=1))
-
             self.add(gluon.nn.GlobalAvgPool1D())
+            self.add(gluon.nn.Dense(units=fc_size))
+            self.add(gluon.nn.Dropout(rate=dropout))
+            self.add(gluon.nn.Dense(units=fc_size))
             self.add(gluon.nn.Dropout(rate=dropout))
             self.add(gluon.nn.Dense(units=num_label))
 

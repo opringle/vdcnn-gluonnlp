@@ -48,11 +48,13 @@ if __name__ == '__main__':
     val_path = 's3://{}/{}/{}'.format(args.bucket_name, args.data_dir, 'test.pickle')
 
     # Hyperparameters to search
-    search_space = {'learning_rate': ContinuousParameter(0.0001, 0.5),
+    search_space = {'min_lr': ContinuousParameter(0.0001, 0.5),
+                    'max_lr': ContinuousParameter(0.0001, 0.5),
+                    'lr_cycle_epochs': ContinuousParameter(0.0001, 0.5),
+                    'lr_increase_fraction': ContinuousParameter(0.0001, 0.5),
                     'momentum': ContinuousParameter(0.8, 0.999),
                     'batch_size': IntegerParameter(8, 512),
-                    'dropout': ContinuousParameter(0.1, 0.9),
-                    'smooth_alpha': ContinuousParameter(0.0, 0.1)
+                    'dropout': ContinuousParameter(0.1, 0.9)
                     }
 
     # Hyperparameters to fix

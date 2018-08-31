@@ -6,6 +6,7 @@ from dataset import UtteranceDataset
 from model import CnnTextClassifier
 import pandas as pd
 import multiprocessing
+import ast
 
 
 def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num_workers):
@@ -18,6 +19,7 @@ def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num
     :param num_workers: number of cpu threads to preprocess data on
     :return: train & val data loaders for network
     """
+    logging.info("Building data loaders for sequence length {}".format(max_utt_chars))
     train_dataset = UtteranceDataset(data=train_df.utterance.values, labels=train_df.intent.values, alphabet=alphabet,
                                      feature_len=max_utt_chars)
 
@@ -94,7 +96,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     train_iter, val_iter = build_dataloaders(train_df=train_df,
                                              val_df=val_df,
                                              alphabet=alph,
-                                             max_utt_chars=hyperparameters.get('sequence_len', 1014),
+                                             max_utt_chars=hyperparameters.get('sequence_length', 1014),
                                              batch_size=batch_size,
                                              num_workers=multiprocessing.cpu_count())
 
@@ -104,7 +106,9 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                             dropout=hyperparameters.get('dropout', 0.2),
                             num_label=len(train_df.intent.unique()),
                             filters=hyperparameters.get('filters', [64, 128, 256, 512]),
-                            blocks=hyperparameters.get('blocks', [1, 1, 1, 1]))
+                            blocks=hyperparameters.get('blocks', [1, 1, 1, 1]),
+                            fc_size=hyperparameters.get('fc_size', 2048))
+    logging.info("Network architecture: {}".format(net))
 
     if not hyperparameters.get('no_hybridize', False):
         logging.info("Hybridizing network to convert from imperitive to symbolic for increased training speed")
@@ -115,9 +119,9 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
 
     logging.info("Defining triangular learning rate schedule")
     updates_per_epoch = train_df.shape[0] // batch_size
-    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.06),
-                                  max_lr=hyperparameters.get('max_lr', 0.06),
-                                  cycle_length=hyperparameters.get('lr_cycle_epochs', 0.06) * updates_per_epoch,
+    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.1),
+                                  max_lr=hyperparameters.get('max_lr', 0.001),
+                                  cycle_length=hyperparameters.get('lr_cycle_epochs', 10) * updates_per_epoch,
                                   inc_fraction=hyperparameters.get('lr_increase_fraction', 0.2))
 
     optimizer = gluon.Trainer(params=net.collect_params(), optimizer='sgd',
@@ -127,7 +131,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
 
     sm_loss = gluon.loss.SoftmaxCrossEntropyLoss()
 
-    logging.info("Training")
+    logging.info("Training for {} epochs".format(hyperparameters.get('epochs', 10)))
     accuracies = []
     for e in range(hyperparameters.get('epochs', 10)):
         epoch_loss = 0
@@ -183,11 +187,14 @@ if __name__ == "__main__":
     group = parser.add_argument_group('Network architecture')
     group.add_argument('--sequence-length', type=int,
                        help='number of characters per utterance')
-    group.add_argument('--num-filters', type=int,
-                       help='number of filters per conv layer')
-    group.add_argument('--fully-connected', type=int,
+    group.add_argument('--embed-size', type=int,
+                       help='number of cols in character lookup table')
+    group.add_argument('--filters', nargs='+', type=int,
+                       help='list of number of filters in each block conv layer')
+    group.add_argument('--blocks', nargs='+', type=int,
+                       help='list of number of blocks between pooling steps')
+    group.add_argument('--fc-size', type=int,
                        help='neurons in fully connected layers')
-
     # Regularization
     group = parser.add_argument_group('Regularization arguments')
     group.add_argument('--dropout', type=float,

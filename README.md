@@ -9,10 +9,10 @@ experimenting with MXNet Gluon API
 - [x] Evaluation function
 - [x] Change to VDCNN
 - [x] Document functions
+- [ ] Sagemaker hyperopt
 - [ ] Custom kmax pool layer
 - [ ] Label smoothing
 - [ ] Add bucketing
-- [ ] Sagemaker hyperopt
 - [ ] Sagemaker deployment
 - [ ] [Multi GPU training](https://medium.com/apache-mxnet/94-accuracy-on-cifar-10-in-10-minutes-with-amazon-sagemaker-754e441d01d7)
 
