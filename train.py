@@ -55,7 +55,7 @@ def evaluate_accuracy(data_iterator, net, ctx):
     return acc.get()[1]
 
 
-class TriangularSchedule():
+class TriangularSchedule:
     def __init__(self, min_lr, max_lr, cycle_length, inc_fraction=0.5):
         """
         min_lr: lower bound for learning rate (float)
@@ -125,14 +125,13 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
 
     logging.info("Defining triangular learning rate schedule")
     updates_per_epoch = train_df.shape[0] // batch_size
-    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.1),
-                                  max_lr=hyperparameters.get('max_lr', 0.001),
+    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.005),
+                                  max_lr=hyperparameters.get('max_lr', 0.1),
                                   cycle_length=hyperparameters.get('lr_cycle_epochs', 10) * updates_per_epoch,
                                   inc_fraction=hyperparameters.get('lr_increase_fraction', 0.2))
 
     optimizer = gluon.Trainer(params=net.collect_params(), optimizer='sgd',
-                              optimizer_params={'learning_rate': hyperparameters.get('learning_rate', 0.06),
-                                                'momentum': hyperparameters.get('momentum', 0.9),
+                              optimizer_params={'momentum': hyperparameters.get('momentum', 0.9),
                                                 'lr_scheduler': schedule})
 
     sm_loss = gluon.loss.SoftmaxCrossEntropyLoss()
@@ -140,6 +139,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     logging.info("Training for {} epochs".format(hyperparameters.get('epochs', 10)))
     accuracies = []
     for e in range(hyperparameters.get('epochs', 10)):
+        logging.info("Epoch {}: Starting Learning Rate = {:.4}".format(e, optimizer.learning_rate))
         epoch_loss = 0
         weight_updates = 0
         for data, label in train_iter:
@@ -160,7 +160,6 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
         logging.info("Epoch {}: Train Loss = {:.4} Train Accuracy = {:.4} Validation Accuracy = {:.4}".
                      format(e, epoch_loss / weight_updates, train_accuracy, val_accuracy))
         logging.info("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))
-    return net
 
 
 if __name__ == "__main__":
@@ -225,4 +224,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     hyp = {k: v for k, v in vars(args).items() if v is not None}
-    net = train(hyperparameters=hyp, channel_input_dirs={'train': args.train, 'val': args.val}, num_gpus=args.gpus)
+    train(hyperparameters=hyp, channel_input_dirs={'train': args.train, 'val': args.val}, num_gpus=args.gpus)
