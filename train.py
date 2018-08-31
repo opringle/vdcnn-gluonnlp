@@ -2,11 +2,16 @@ import argparse
 import logging
 import mxnet as mx
 from mxnet import nd, gluon, autograd
+import multiprocessing
+import os
+
 from dataset import UtteranceDataset
 from model import CnnTextClassifier
+
+# pip install in code to ensure pandas in docker image :(
+from pip._internal import main as pipmain
+pipmain(['install', 'pandas'])
 import pandas as pd
-import multiprocessing
-import ast
 
 
 def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num_workers):
@@ -58,8 +63,8 @@ class TriangularSchedule():
         cycle_length: iterations between start and finish (int)
         inc_fraction: fraction of iterations spent in increasing stage (float)
         """
-        self.min_lr = min_lr
-        self.max_lr = max_lr
+        self.min_lr = min(min_lr, max_lr)
+        self.max_lr = max(min_lr, max_lr)
         self.cycle_length = cycle_length
         self.inc_fraction = inc_fraction
 
@@ -82,14 +87,15 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     :return: gluon neural network
     """
     logging.info("Reading in data")
-    train_df = pd.read_pickle(channel_input_dirs['train'])
+    train_df = pd.read_pickle(os.path.join(channel_input_dirs['train'], 'train.pickle'))
     logging.info("Loaded {} train records".format(train_df.shape[0]))
-    val_df = pd.read_pickle(channel_input_dirs['val'])
+    val_df = pd.read_pickle(os.path.join(channel_input_dirs['val'], 'test.pickle'))
     logging.info("Loaded {} validation records".format(val_df.shape[0]))
 
     alph = list("abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+ =<>()[]{}")
 
     ctx = mx.gpu() if num_gpus > 0 else mx.cpu()
+    logging.info("Training context: {}".format(ctx))
     batch_size = hyperparameters.get('batch_size', 128)
 
     logging.info("Building data loaders")

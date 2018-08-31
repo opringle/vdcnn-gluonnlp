@@ -7,29 +7,37 @@ import boto3
 parser = argparse.ArgumentParser(description="MXNet + Sagemaker hyperparameter optimization job",
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('--job-name', type=str, required=True,
-                    help='name of job')
-parser.add_argument('--profile', type=str, default='',
+# Authentication
+group = parser.add_argument_group('Authentication args')
+group.add_argument('--profile', type=str, default='',
                     help='role with permissions to run sagemaker')
-parser.add_argument('--role_arn', type=str,
+group.add_argument('--role_arn', type=str,
                     default='arn:aws:iam::430515702528:role/service-role/AmazonSageMaker-ExecutionRole-20180730T100605',
                     help='arn of sagemaker execution role')
-parser.add_argument('--bucket_name', type=str, default='finn-dl-sandbox-atlas',
+
+# Data and code
+group = parser.add_argument_group('Data and code arguments')
+group.add_argument('--bucket_name', type=str, default='finn-dl-sandbox-atlas',
                     help='bucket to store code, data and artifacts')
-parser.add_argument('--train-code', type=str, default='./train.py',
-                    help='python module containing train() function')
-parser.add_argument('--source-dir', type=str, default='./',
-                    help='directory of other python modules imported')
-parser.add_argument('--train-instance-type', type=str, default='local',
-                    help='instance type for training')
-parser.add_argument('--train-instance-count', type=int, default=1,
-                    help='number of instances to distribute training')
-parser.add_argument('--max-jobs', type=int, default=500,
-                    help='number of hypesrparameter jobs to run')
-parser.add_argument('--max-parallel-jobs', type=int, default=1,
-                    help='number of parallel jobs to run')
-parser.add_argument('--data-dir', type=str, default='./data/ag_news',
+group.add_argument('--data-dir', type=str, default='atb_model_49/strat_split/data',
                     help='path to train/test pickle files')
+group.add_argument('--train-code', type=str, default='train.py',
+                    help='python module containing train() function')
+group.add_argument('--source-dir', type=str, default='.',
+                    help='directory of other python modules imported')
+
+# Job details
+group = parser.add_argument_group('Job arguments')
+group.add_argument('job_name', type=str,
+                    help='namse of job')
+group.add_argument('--train-instance-type', type=str, default='local',
+                    help='instance type for training')
+group.add_argument('--train-instance-count', type=int, default=1,
+                    help='number of instances to distribute training')
+group.add_argument('--max-jobs', type=int, default=500,
+                    help='number of hypesrparameter jobs to run')
+group.add_argument('--max-parallel-jobs', type=int, default=1,
+                    help='number of parallel jobs to run')
 
 
 if __name__ == '__main__':
@@ -44,21 +52,24 @@ if __name__ == '__main__':
     # Initialize variables
     custom_code_upload_location = 's3://{}/customcode/mxnet'.format(args.bucket_name)
     model_artifacts_location = 's3://{}/artifacts'.format(args.bucket_name)
-    train_path = 's3://{}/{}/{}'.format(args.bucket_name, args.data_dir, 'train.pickle')
-    val_path = 's3://{}/{}/{}'.format(args.bucket_name, args.data_dir, 'test.pickle')
+    data_path = 's3://{}/{}'.format(args.bucket_name, args.data_dir)
 
     # Hyperparameters to search
-    search_space = {'min_lr': ContinuousParameter(0.0001, 0.5),
-                    'max_lr': ContinuousParameter(0.0001, 0.5),
-                    'lr_cycle_epochs': ContinuousParameter(0.0001, 0.5),
-                    'lr_increase_fraction': ContinuousParameter(0.0001, 0.5),
+    search_space = {'min_lr': ContinuousParameter(0.0001, 1),
+                    'max_lr': ContinuousParameter(0.0001, 1),
+                    'lr_cycle_epochs': ContinuousParameter(1, 20),
+                    'lr_increase_fraction': ContinuousParameter(0.1, 0.5),
                     'momentum': ContinuousParameter(0.8, 0.999),
-                    'batch_size': IntegerParameter(8, 512),
-                    'dropout': ContinuousParameter(0.1, 0.9)
+                    'batch_size': IntegerParameter(8, 2048),
+                    'dropout': ContinuousParameter(0.0, 0.99)
                     }
 
     # Hyperparameters to fix
-    hyperparameters = {'epochs': 10
+    hyperparameters = {'epochs': 20,
+                       'embed_size': 16,
+                       'blocks': [1, 1, 1, 1],
+                       'filters': [64, 128, 256, 512],
+                       'fc_size': 512
                        }
 
     # Create an estimator
@@ -86,5 +97,5 @@ if __name__ == '__main__':
                                    max_parallel_jobs=args.max_parallel_jobs)
 
     # Start hyperparameter tuning job
-    # my_tuner.fit({'train': train_path, 'val': val_path})
-    estimator.fit({'train': train_path, 'val': val_path})
+    my_tuner.fit({'train': data_path, 'val': data_path})
+    # estimator.fit({'train': data_path, 'val': data_path})
