@@ -57,18 +57,19 @@ if __name__ == '__main__':
     # Hyperparameters to search
     search_space = {'min_lr': ContinuousParameter(0.0001, 1),
                     'max_lr': ContinuousParameter(0.0001, 1),
-                    'lr_cycle_epochs': ContinuousParameter(1, 20),
+                    'lr_cycle_epochs': ContinuousParameter(1, 10),
                     'lr_increase_fraction': ContinuousParameter(0.1, 0.5),
                     'momentum': ContinuousParameter(0.8, 0.999),
-                    'batch_size': IntegerParameter(8, 512),
+                    # 'batch_size': IntegerParameter(8, 512),
                     'dropout': ContinuousParameter(0.01, 0.99)
                     }
 
     # Hyperparameters to fix
     hyperparameters = {'epochs': 20,
+                       'batch_size': 264,
                        'sequence_length': 256,
                        'embed_size': 16,
-                       'blocks': [1, 1, 1, 1],
+                       'blocks': [2, 2, 2, 2],
                        'filters': [64, 128, 256, 512],
                        'fc_size': 512
                        }
