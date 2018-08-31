@@ -19,7 +19,7 @@ group.add_argument('--role_arn', type=str,
 group = parser.add_argument_group('Data and code arguments')
 group.add_argument('--bucket_name', type=str, default='finn-dl-sandbox-atlas',
                     help='bucket to store code, data and artifacts')
-group.add_argument('--data-dir', type=str, default='atb_model_49/strat_split/data',
+group.add_argument('--data-dir', type=str, default='atb_model_46/strat_split/data',
                     help='path to train/test pickle files')
 group.add_argument('--train-code', type=str, default='train.py',
                     help='python module containing train() function')
@@ -35,7 +35,7 @@ group.add_argument('--train-instance-type', type=str, default='local',
 group.add_argument('--train-instance-count', type=int, default=1,
                     help='number of instances to distribute training')
 group.add_argument('--max-jobs', type=int, default=500,
-                    help='number of hypesrparameter jobs to run')
+                    help='number of hyperparameter jobs to run')
 group.add_argument('--max-parallel-jobs', type=int, default=1,
                     help='number of parallel jobs to run')
 
@@ -60,8 +60,8 @@ if __name__ == '__main__':
                     'lr_cycle_epochs': ContinuousParameter(1, 20),
                     'lr_increase_fraction': ContinuousParameter(0.1, 0.5),
                     'momentum': ContinuousParameter(0.8, 0.999),
-                    'batch_size': IntegerParameter(8, 2048),
-                    'dropout': ContinuousParameter(0.0, 0.99)
+                    'batch_size': IntegerParameter(8, 512),
+                    'dropout': ContinuousParameter(0.01, 0.99)
                     }
 
     # Hyperparameters to fix

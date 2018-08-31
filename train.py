@@ -8,7 +8,7 @@ import os
 from dataset import UtteranceDataset
 from model import CnnTextClassifier
 
-# pip install in code to ensure pandas in docker image :(
+# pip install in code to ensure pandas installed in docker image :(
 from pip._internal import main as pipmain
 pipmain(['install', 'pandas'])
 import pandas as pd
