@@ -66,6 +66,7 @@ if __name__ == '__main__':
 
     # Hyperparameters to fix
     hyperparameters = {'epochs': 20,
+                       'sequence_length': 256,
                        'embed_size': 16,
                        'blocks': [1, 1, 1, 1],
                        'filters': [64, 128, 256, 512],

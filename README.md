@@ -1,5 +1,18 @@
-# gluon-examples
-experimenting with MXNet Gluon API
+# Gluon Deep Char CNN
+
+MXNet Gluon code to both train and optimize a deep convolutional neural network for the task of text classification.
+
+The model achieves XX% test accuracy on the AG News dataset (state of the art is XX%)
+
+# Instructions
+
+- Create a virtual env
+    - `mkvirtualenv -a ./ -r requirements.txt -p python3.6 gluon`
+- To train the model with best parameters found through bayesian optimization
+    - `python train.py --train data/ag_news --val data/ag_news`
+- To run an Amazon Sagemaker bayesian optimization job
+    - Setup sagemaker
+    -  `python sage.py <jobname> <aws profile>`
 
 # ToDo
 
@@ -16,8 +29,3 @@ experimenting with MXNet Gluon API
 - [ ] Bucketing
 - [ ] Sagemaker deployment
 - [ ] [Multi GPU training](https://medium.com/apache-mxnet/94-accuracy-on-cifar-10-in-10-minutes-with-amazon-sagemaker-754e441d01d7)
-
-# To run the code
-
-`mkvirtualenv -a ./ -r requirements.txt -p python3.6 gluon`
-`python train.py --train ../VDCNN-for-text-classification/data/atb_model_41/train.pickle --val ../VDCNN-for-text-classification/data/atb_model_41/test.pickle`
