@@ -23,10 +23,10 @@ The model achieves XX% test accuracy on the AG News dataset (state of the art is
 - [x] Change to VDCNN
 - [x] Document functions
 - [x] Sagemaker hyperopt
+- [x] Bucketing
 - [ ] Batch size causes hyperopt job to die
 - [ ] Loss bug when training on ag_news
 - [ ] Custom kmax pool layer
 - [ ] Label smoothing
-- [ ] Bucketing
 - [ ] Sagemaker deployment
 - [ ] [Multi GPU training](https://medium.com/apache-mxnet/94-accuracy-on-cifar-10-in-10-minutes-with-amazon-sagemaker-754e441d01d7)
