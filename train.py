@@ -2,6 +2,7 @@ import argparse
 import logging
 import mxnet as mx
 from mxnet import nd, gluon, autograd
+import gluonnlp as nlp
 import multiprocessing
 import os
 
@@ -14,7 +15,7 @@ pipmain(['install', 'pandas'])
 import pandas as pd
 
 
-def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num_workers):
+def build_dataloaders(train_df, val_df, alphabet, batch_size, num_workers):
     """
     :param train_df: pandas dataframe of training data
     :param val_df: pandas dataframe of validation data
@@ -24,17 +25,26 @@ def build_dataloaders(train_df, val_df, alphabet, max_utt_chars, batch_size, num
     :param num_workers: number of cpu threads to preprocess data on
     :return: train & val data loaders for network
     """
-    logging.info("Building data loaders for sequence length {}".format(max_utt_chars))
-    train_dataset = UtteranceDataset(data=train_df.utterance.values, labels=train_df.intent.values, alphabet=alphabet,
-                                     feature_len=max_utt_chars)
+    logging.info("Building bucketing data loaders")
+    train_df = train_df[:1000]
+    train_dataset = UtteranceDataset(data=train_df.utterance.values, labels=train_df.intent.values, alphabet=alphabet)
+    test_dataset = UtteranceDataset(data=val_df.utterance.values, labels=val_df.intent.values, alphabet=alphabet)
 
-    test_dataset = UtteranceDataset(data=val_df.utterance.values, labels=val_df.intent.values, alphabet=alphabet,
-                                    feature_len=max_utt_chars)
+    # Define buckets to minimize computation on padded data
+    train_data_lengths = [len(x) for x in train_df.utterance.values]
+    batch_sampler = nlp.data.sampler.FixedBucketSampler(train_data_lengths,
+                                                        batch_size=batch_size,
+                                                        num_buckets=10,
+                                                        ratio=0.5,  # smaller sequence lengths have larger batch sizes
+                                                        shuffle=True)
+    logging.info("Bucket statistics: {}".format(batch_sampler.stats()))
 
-    train_iter = gluon.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, last_batch='discard',
+    # apply padding to features & stack to labels
+    batchify_fn = nlp.data.batchify.Tuple(nlp.data.batchify.Pad(axis=0), nlp.data.batchify.Stack())
+
+    train_iter = gluon.data.DataLoader(dataset=train_dataset, batch_sampler=batch_sampler, batchify_fn=batchify_fn,
                                        num_workers=num_workers)
-
-    test_iter = gluon.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, last_batch='discard',
+    test_iter = gluon.data.DataLoader(dataset=test_dataset, batch_sampler=batch_sampler, batchify_fn=batchify_fn,
                                       num_workers=num_workers)
     return train_iter, test_iter
 
@@ -102,7 +112,6 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     train_iter, val_iter = build_dataloaders(train_df=train_df,
                                              val_df=val_df,
                                              alphabet=alph,
-                                             max_utt_chars=hyperparameters.get('sequence_length', 1014),
                                              batch_size=batch_size,
                                              num_workers=multiprocessing.cpu_count())
 
@@ -189,8 +198,6 @@ if __name__ == "__main__":
 
     # Network architecture
     group = parser.add_argument_group('Network architecture')
-    group.add_argument('--sequence-length', type=int,
-                       help='number of characters per utterance')
     group.add_argument('--embed-size', type=int,
                        help='number of cols in character lookup table')
     group.add_argument('--temp-conv-filters', type=int,
