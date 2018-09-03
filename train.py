@@ -15,18 +15,17 @@ pipmain(['install', 'pandas'])
 import pandas as pd
 
 
-def build_dataloaders(train_df, val_df, alphabet, batch_size, num_workers):
+def build_dataloaders(train_df, val_df, alphabet, batch_size, num_buckets, num_workers):
     """
     :param train_df: pandas dataframe of training data
     :param val_df: pandas dataframe of validation data
     :param alphabet: list of characters to have a corresponding embedding in the lookup table
-    :param max_utt_chars: slice/pad text to this many characters
     :param batch_size: number of training examples per network parameter update
+    :param num_buckets: number of buckets to create for variable sequence lengths
     :param num_workers: number of cpu threads to preprocess data on
     :return: train & val data loaders for network
     """
     logging.info("Building bucketing data loaders")
-    train_df = train_df[:1000]
     train_dataset = UtteranceDataset(data=train_df.utterance.values, labels=train_df.intent.values, alphabet=alphabet)
     test_dataset = UtteranceDataset(data=val_df.utterance.values, labels=val_df.intent.values, alphabet=alphabet)
 
@@ -34,7 +33,7 @@ def build_dataloaders(train_df, val_df, alphabet, batch_size, num_workers):
     train_data_lengths = [len(x) for x in train_df.utterance.values]
     batch_sampler = nlp.data.sampler.FixedBucketSampler(train_data_lengths,
                                                         batch_size=batch_size,
-                                                        num_buckets=10,
+                                                        num_buckets=num_buckets,
                                                         ratio=0.5,  # smaller sequence lengths have larger batch sizes
                                                         shuffle=True)
     logging.info("Bucket statistics: {}".format(batch_sampler.stats()))
@@ -113,6 +112,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                                              val_df=val_df,
                                              alphabet=alph,
                                              batch_size=batch_size,
+                                             num_buckets=hyperparameters.get('num_buckets', 10),
                                              num_workers=multiprocessing.cpu_count())
 
     logging.info("Defining network architecture")
@@ -229,6 +229,8 @@ if __name__ == "__main__":
                        help='optimizer momentum')
     group.add_argument('--batch-size', type=int,
                        help='number of training examples per batch')
+    parser.add_argument('--num-buckets', type=int,
+                        help='num of different allowed sequence lengths')
 
     args = parser.parse_args()
     hyp = {k: v for k, v in vars(args).items() if v is not None}
