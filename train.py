@@ -31,21 +31,28 @@ def build_dataloaders(train_df, val_df, alphabet, batch_size, num_buckets, num_w
 
     # Define buckets to minimize computation on padded data
     train_data_lengths = [len(x) for x in train_df.utterance.values]
-    batch_sampler = nlp.data.sampler.FixedBucketSampler(train_data_lengths,
-                                                        batch_size=batch_size,
-                                                        num_buckets=num_buckets,
-                                                        ratio=0.5,  # smaller sequence lengths have larger batch sizes
-                                                        shuffle=True)
-    logging.info("Bucket statistics: {}".format(batch_sampler.stats()))
+    val_data_lengths = [len(x) for x in val_df.utterance.values]
+    train_batch_sampler = nlp.data.sampler.FixedBucketSampler(train_data_lengths,
+                                                              batch_size=batch_size,
+                                                              num_buckets=num_buckets,
+                                                              ratio=0.5,  # smaller sequence lengths have larger batch sizes
+                                                              shuffle=True)
+    val_batch_sampler = nlp.data.sampler.FixedBucketSampler(val_data_lengths,
+                                                            batch_size=batch_size,
+                                                            num_buckets=num_buckets,
+                                                            ratio=0.5,
+                                                            shuffle=False)
+    logging.info("Bucket statistics: {}".format(train_batch_sampler.stats()))
+    train_batches = train_batch_sampler.__len__()
 
     # apply padding to features & stack to labels
     batchify_fn = nlp.data.batchify.Tuple(nlp.data.batchify.Pad(axis=0), nlp.data.batchify.Stack())
 
-    train_iter = gluon.data.DataLoader(dataset=train_dataset, batch_sampler=batch_sampler, batchify_fn=batchify_fn,
+    train_iter = gluon.data.DataLoader(dataset=train_dataset, batch_sampler=train_batch_sampler, batchify_fn=batchify_fn,
                                        num_workers=num_workers)
-    test_iter = gluon.data.DataLoader(dataset=test_dataset, batch_sampler=batch_sampler, batchify_fn=batchify_fn,
+    test_iter = gluon.data.DataLoader(dataset=test_dataset, batch_sampler=val_batch_sampler, batchify_fn=batchify_fn,
                                       num_workers=num_workers)
-    return train_iter, test_iter
+    return train_iter, test_iter, train_batches
 
 
 def evaluate_accuracy(data_iterator, net, ctx):
@@ -108,19 +115,19 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     batch_size = hyperparameters.get('batch_size', 128)
 
     logging.info("Building data loaders")
-    train_iter, val_iter = build_dataloaders(train_df=train_df,
-                                             val_df=val_df,
-                                             alphabet=alph,
-                                             batch_size=batch_size,
-                                             num_buckets=hyperparameters.get('num_buckets', 10),
-                                             num_workers=multiprocessing.cpu_count())
+    train_iter, val_iter, updates_per_epoch = build_dataloaders(train_df=train_df,
+                                                                val_df=val_df,
+                                                                alphabet=alph,
+                                                                batch_size=batch_size,
+                                                                num_buckets=hyperparameters.get('num_buckets', 30),
+                                                                num_workers=multiprocessing.cpu_count())
 
     logging.info("Defining network architecture")
     net = CnnTextClassifier(vocab_size=len(alph),
                             embed_size=hyperparameters.get('embed_size', 16),
                             dropout=hyperparameters.get('dropout', 0.2),
                             num_label=len(train_df.intent.unique()),
-                            temp_conv_filters=hyperparameters.get('temp_conv_filters', 64),
+                            temp_conv_filters=hyperparameters.get('temp_conv_filters', 32),
                             blocks=hyperparameters.get('blocks', [1, 1, 1, 1]))
     logging.info("Network architecture: {}".format(net))
 
@@ -132,11 +139,10 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     net.collect_params().initialize(mx.init.Xavier(magnitude=2.24), ctx=ctx)
 
     logging.info("Defining triangular learning rate schedule")
-    updates_per_epoch = train_df.shape[0] // batch_size
     schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.005),
                                   max_lr=hyperparameters.get('max_lr', 0.1),
                                   cycle_length=hyperparameters.get('lr_cycle_epochs', 10) * updates_per_epoch,
-                                  inc_fraction=hyperparameters.get('lr_increase_fraction', 0.2))
+                                  inc_fraction=hyperparameters.get('lr_increase_fraction', 0.4))
 
     optimizer = gluon.Trainer(params=net.collect_params(), optimizer='sgd',
                               optimizer_params={'momentum': hyperparameters.get('momentum', 0.9),
