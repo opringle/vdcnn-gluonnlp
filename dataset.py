@@ -21,7 +21,7 @@ class UtteranceDataset(gluon.data.ArrayDataset):
         :param text: string to index
         :return: list of int
         """
-        return [self.char_to_index.get(letter, -1) for letter in text]
+        return [self.char_to_index.get(letter, -1) for letter in text.lower()]
 
     def __getitem__(self, idx):
         return self.encode(self._data[0][idx]), self.label_to_index[self._data[1][idx]]

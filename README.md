@@ -9,7 +9,7 @@ The model achieves XX% test accuracy on the AG News dataset (state of the art is
 - Create a virtual env
     - `mkvirtualenv -a ./ -r requirements.txt -p python3.6 gluon`
 - To train the model with best parameters found through bayesian optimization
-    - `python train.py --train data/ag_news --val data/ag_news`
+    - `MXNET_CUDNN_AUTOTUNE_DEFAULT=0 python train.py --train data/ag_news --val data/ag_news --gpus=1`
 - To run an Amazon Sagemaker bayesian optimization job
     - Setup sagemaker
     -  `python sage.py <jobname> <aws profile>`

@@ -1,21 +1,25 @@
 import argparse
 import logging
-import mxnet as mx
-from mxnet import nd, gluon, autograd
-import gluonnlp as nlp
 import multiprocessing
 import os
+import time
 
 from dataset import UtteranceDataset
 from model import CnnTextClassifier
 
-# pip install in code to ensure pandas installed in docker image :(
+# pip install in code to ensure installed in docker image :(
+# ToDo: custom docker image
 from pip._internal import main as pipmain
 pipmain(['install', 'pandas'])
+pipmain(['install', '--pre', 'mxnet'])
+pipmain(['install', 'gluonnlp'])
+import gluonnlp as nlp
 import pandas as pd
+from mxnet import nd, gluon, autograd
+import mxnet as mx
 
 
-def build_dataloaders(train_df, val_df, alphabet, batch_size, num_buckets, num_workers):
+def build_dataloaders(train_df, val_df, alphabet, batch_size, num_buckets, batch_seq_ratio, num_workers):
     """
     :param train_df: pandas dataframe of training data
     :param val_df: pandas dataframe of validation data
@@ -35,12 +39,12 @@ def build_dataloaders(train_df, val_df, alphabet, batch_size, num_buckets, num_w
     train_batch_sampler = nlp.data.sampler.FixedBucketSampler(train_data_lengths,
                                                               batch_size=batch_size,
                                                               num_buckets=num_buckets,
-                                                              ratio=0.5,  # smaller sequence lengths have larger batch sizes
+                                                              ratio=batch_seq_ratio,  # batch size depends on seq L
                                                               shuffle=True)
     val_batch_sampler = nlp.data.sampler.FixedBucketSampler(val_data_lengths,
                                                             batch_size=batch_size,
                                                             num_buckets=num_buckets,
-                                                            ratio=0.5,
+                                                            ratio=batch_seq_ratio,
                                                             shuffle=False)
     logging.info("Bucket statistics: {}".format(train_batch_sampler.stats()))
     train_batches = train_batch_sampler.__len__()
@@ -108,7 +112,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     val_df = pd.read_pickle(os.path.join(channel_input_dirs['val'], 'test.pickle'))
     logging.info("Loaded {} validation records".format(val_df.shape[0]))
 
-    alph = list("abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+ =<>()[]{}")
+    alph = list("""abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+ =<>()[]{}""")
 
     ctx = mx.gpu() if num_gpus > 0 else mx.cpu()
     logging.info("Training context: {}".format(ctx))
@@ -119,7 +123,8 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
                                                                 val_df=val_df,
                                                                 alphabet=alph,
                                                                 batch_size=batch_size,
-                                                                num_buckets=hyperparameters.get('num_buckets', 30),
+                                                                batch_seq_ratio=hyperparameters.get('batch_seq_ratio', 0.5),
+                                                                num_buckets=hyperparameters.get('num_buckets', 3),
                                                                 num_workers=multiprocessing.cpu_count())
 
     logging.info("Defining network architecture")
@@ -139,8 +144,8 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
     net.collect_params().initialize(mx.init.Xavier(magnitude=2.24), ctx=ctx)
 
     logging.info("Defining triangular learning rate schedule")
-    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.005),
-                                  max_lr=hyperparameters.get('max_lr', 0.1),
+    schedule = TriangularSchedule(min_lr=hyperparameters.get('min_lr', 0.05),
+                                  max_lr=hyperparameters.get('max_lr', 0.05),
                                   cycle_length=hyperparameters.get('lr_cycle_epochs', 10) * updates_per_epoch,
                                   inc_fraction=hyperparameters.get('lr_increase_fraction', 0.4))
 
@@ -156,6 +161,7 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
         logging.info("Epoch {}: Starting Learning Rate = {:.4}".format(e, optimizer.learning_rate))
         epoch_loss = 0
         weight_updates = 0
+        start = time.time()
         for data, label in train_iter:
             data = data.as_in_context(ctx)
             label = label.as_in_context(ctx)
@@ -171,9 +177,10 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
         train_accuracy = evaluate_accuracy(train_iter, net, ctx)
         val_accuracy = evaluate_accuracy(val_iter, net, ctx)
         accuracies.append(val_accuracy)
-        logging.info("Epoch {}: Train Loss = {:.4} Train Accuracy = {:.4} Validation Accuracy = {:.4}".
-                     format(e, epoch_loss / weight_updates, train_accuracy, val_accuracy))
+        logging.info("Epoch {}: Time = {:.4}s Train Loss = {:.4} Train Accuracy = {:.4} Validation Accuracy = {:.4}".
+                     format(e, time.time()-start, epoch_loss / weight_updates, train_accuracy, val_accuracy))
         logging.info("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))
+
 
 
 if __name__ == "__main__":
@@ -237,6 +244,8 @@ if __name__ == "__main__":
                        help='number of training examples per batch')
     parser.add_argument('--num-buckets', type=int,
                         help='num of different allowed sequence lengths')
+    group.add_argument('--batch-seq-ratio', type=float,
+                       help='increase batch size for shorter sequences')
 
     args = parser.parse_args()
     hyp = {k: v for k, v in vars(args).items() if v is not None}

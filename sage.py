@@ -61,20 +61,22 @@ if __name__ == '__main__':
                     'lr_increase_fraction': ContinuousParameter(0.1, 0.5),
                     'momentum': ContinuousParameter(0.8, 0.999),
                     'dropout': ContinuousParameter(0.01, 0.99),
-                    'temp_conv_filters': IntegerParameter(1, 256),
+                    'temp_conv_filters': IntegerParameter(32, 128),
                     'l2': ContinuousParameter(0.0, 0.2)
                     }
 
     # Hyperparameters to fix
-    hyperparameters = {'epochs': 20,
-                       'batch_size': 128,
-                       'sequence_length': 256,
+    hyperparameters = {'epochs': 30,
+                       'batch_size': 24,
+                       'num_buckets': 30,
+                       'batch_seq_ration': 0.5,
                        'embed_size': 16,
                        'blocks': [1, 1, 1, 1]
                        }
 
     # Create an estimator
-    estimator = MXNet(sagemaker_session=sagemaker_session if 'local' not in args.train_instance_type else local_session,
+    estimator = MXNet(image_name='./Dockerfile',
+                      sagemaker_session=sagemaker_session if 'local' not in args.train_instance_type else local_session,
                       hyperparameters=hyperparameters,
                       entry_point=args.train_code,
                       source_dir=args.source_dir,
@@ -84,19 +86,19 @@ if __name__ == '__main__':
                       train_instance_count=args.train_instance_count,
                       train_instance_type=args.train_instance_type,
                       base_job_name=args.job_name,
-                      py_version='py3',
-                      framework_version='1.1.0',
+                      # py_version='py3',
+                      # framework_version='1.1.0',
                       train_volume_size=1)
 
     # Configure Hyperparameter Tuner
     my_tuner = HyperparameterTuner(estimator=estimator,
-                                   objective_metric_name='Validation-accuracy',
+                                   objective_metric_name='Best Validation Accuracy',
                                    hyperparameter_ranges=search_space,
                                    metric_definitions=[
-                                       {'Name': 'Validation-accuracy', 'Regex': 'Best Validation Accuracy =(\d\.\d+)'}],
+                                       {'Name': 'Best Validation Accuracy', 'Regex': 'Best Validation Accuracy =(\d\.\d+)'}],
                                    max_jobs=args.max_jobs,
                                    max_parallel_jobs=args.max_parallel_jobs)
 
     # Start hyperparameter tuning job
-    my_tuner.fit({'train': data_path, 'val': data_path})
-    # estimator.fit({'train': data_path, 'val': data_path})
+    # my_tuner.fit({'train': data_path, 'val': data_path})
+    estimator.fit({'train': data_path, 'val': data_path})
