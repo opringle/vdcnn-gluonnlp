@@ -23,12 +23,14 @@ done
 registry_url=$(aws ecr get-authorization-token --profile "$1" --region "$2" | \
                python -c "import sys, json; print(json.load(sys.stdin)['authorizationData'][0]['proxyEndpoint'][8:])")
 
+tag="$registry_url"/ml-mxnet-sandbox:gluonnlp-cuda9.2
 
 # log into docker
 eval $(aws ecr get-login --profile "$1" --region "$2" --no-include-email)
 
 # build image
-docker build . -t "$registry_url"/gluonnlp-cuda9.2
+docker build . -t "$tag"
 
 # push to ECR
-docker push "$registry_url"/gluonnlp-cuda9.2
+docker push "$tag"
+
