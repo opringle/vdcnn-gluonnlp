@@ -23,8 +23,8 @@ The model achieves XX% test accuracy on the AG News dataset (state of the art is
 - [x] Change to VDCNN
 - [x] Document functions
 - [x] Bucketing
-- [ ] Custom sagemaker docker image with added python modules
-- [ ] Sagemaker hyperopt
+- [ ] Create and reference custom sagemaker docker image with added python modules
+- [ ] Sagemaker hyperopt get metric to record
 - [ ] Batch size causes hyperopt job to die
 - [ ] Sagemaker deployment
 - [ ] [Multi GPU training](https://medium.com/apache-mxnet/94-accuracy-on-cifar-10-in-10-minutes-with-amazon-sagemaker-754e441d01d7)

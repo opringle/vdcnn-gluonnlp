@@ -75,7 +75,7 @@ if __name__ == '__main__':
                        }
 
     # Create an estimator
-    estimator = MXNet(image_name='./Dockerfile',
+    estimator = MXNet(image_name='',
                       sagemaker_session=sagemaker_session if 'local' not in args.train_instance_type else local_session,
                       hyperparameters=hyperparameters,
                       entry_point=args.train_code,
@@ -86,8 +86,6 @@ if __name__ == '__main__':
                       train_instance_count=args.train_instance_count,
                       train_instance_type=args.train_instance_type,
                       base_job_name=args.job_name,
-                      # py_version='py3',
-                      # framework_version='1.1.0',
                       train_volume_size=1)
 
     # Configure Hyperparameter Tuner
@@ -97,7 +95,8 @@ if __name__ == '__main__':
                                    metric_definitions=[
                                        {'Name': 'Best Validation Accuracy', 'Regex': 'Best Validation Accuracy =(\d\.\d+)'}],
                                    max_jobs=args.max_jobs,
-                                   max_parallel_jobs=args.max_parallel_jobs)
+                                   max_parallel_jobs=args.max_parallel_jobs,
+                                   base_tuning_job_name=args.job_name)
 
     # Start hyperparameter tuning job
     # my_tuner.fit({'train': data_path, 'val': data_path})

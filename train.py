@@ -3,20 +3,13 @@ import logging
 import multiprocessing
 import os
 import time
-
-from dataset import UtteranceDataset
-from model import CnnTextClassifier
-
-# pip install in code to ensure installed in docker image :(
-# ToDo: custom docker image
-from pip._internal import main as pipmain
-pipmain(['install', 'pandas'])
-pipmain(['install', '--pre', 'mxnet'])
-pipmain(['install', 'gluonnlp'])
 import gluonnlp as nlp
 import pandas as pd
 from mxnet import nd, gluon, autograd
 import mxnet as mx
+
+from dataset import UtteranceDataset
+from model import CnnTextClassifier
 
 
 def build_dataloaders(train_df, val_df, alphabet, batch_size, num_buckets, batch_seq_ratio, num_workers):
@@ -180,11 +173,11 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
         logging.info("Epoch {}: Time = {:.4}s Train Loss = {:.4} Train Accuracy = {:.4} Validation Accuracy = {:.4}".
                      format(e, time.time()-start, epoch_loss / weight_updates, train_accuracy, val_accuracy))
         logging.info("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))
+        print("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))  # sagemaker needs print for
 
 
 
 if __name__ == "__main__":
-
     logging.basicConfig()
     logging.getLogger().setLevel(logging.INFO)
 
