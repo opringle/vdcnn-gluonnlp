@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser(description="MXNet + Sagemaker hyperparameter o
 
 # Authentication
 group = parser.add_argument_group('Authentication args')
-group.add_argument('--profile', type=str, default='',
+group.add_argument('--profile', type=str, default='sagemaker_execution',
                     help='role with permissions to run sagemaker')
 group.add_argument('--role_arn', type=str,
                     default='arn:aws:iam::430515702528:role/service-role/AmazonSageMaker-ExecutionRole-20180730T100605',
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Assume permissions to provision services with Sagemaker role
-    session = boto3.Session(profile_name='sagemaker_execution')
+    session = boto3.Session(profile_name=args.profile)
     sagemaker_session = sagemaker.Session(boto_session=session)
     local_session = sagemaker.local.local_session.LocalSession(boto_session=session)
 

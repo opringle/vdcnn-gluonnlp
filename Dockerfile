@@ -19,5 +19,5 @@ ENV MXNET_CUDNN_AUTOTUNE_DEFAULT=0
 ENV PATH="/opt/program:${PATH}"
 
 # Set up the program in the image
-COPY vdcnn /opt/program
-WORKDIR /opt/program
+COPY vdcnn /opt/program/
+WORKDIR /opt/program/vdcnn
