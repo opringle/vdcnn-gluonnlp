@@ -21,10 +21,6 @@ group.add_argument('--bucket_name', type=str, default='finn-dl-sandbox-atlas',
                     help='bucket to store code, data and artifacts')
 group.add_argument('--data-dir', type=str, default='atb_model_46/strat_split/data',
                     help='path to train/test pickle files')
-group.add_argument('--train-code', type=str, default='train.py',
-                    help='python module containing train() function')
-group.add_argument('--source-dir', type=str, default='vdcnn',
-                    help='directory of other python modules imported')
 
 # Job details
 group = parser.add_argument_group('Job arguments')
@@ -80,11 +76,9 @@ if __name__ == '__main__':
     estimator = MXNet(image_name=args.image_name,
                       sagemaker_session=sagemaker_session if 'local' not in args.train_instance_type else local_session,
                       hyperparameters=hyperparameters,
-                      entry_point=args.train_code,
-                      source_dir=args.source_dir,
+                      entry_point='train.py',
                       role=args.role_arn,
                       output_path=model_artifacts_location,
-                      # code_location=custom_code_upload_location,
                       train_instance_count=args.train_instance_count,
                       train_instance_type=args.train_instance_type,
                       base_job_name=args.job_name,
@@ -95,7 +89,8 @@ if __name__ == '__main__':
                                    objective_metric_name='Best Validation Accuracy',
                                    hyperparameter_ranges=search_space,
                                    metric_definitions=[
-                                       {'Name': 'Best Validation Accuracy', 'Regex': 'Best Validation Accuracy =(\d\.\d+)'}],
+                                       {'Name': 'Best Validation Accuracy',
+                                        'Regex': 'Best Validation Accuracy =(\d\.\d+)'}],
                                    max_jobs=args.max_jobs,
                                    max_parallel_jobs=args.max_parallel_jobs,
                                    base_tuning_job_name=args.job_name)

@@ -21,3 +21,5 @@ ENV PATH="/opt/program:${PATH}"
 # Set up the program in the image
 COPY vdcnn /opt/program
 WORKDIR /opt/program
+
+ENTRYPOINT ["python", "train.py"]
