@@ -84,7 +84,7 @@ if __name__ == '__main__':
                       source_dir=args.source_dir,
                       role=args.role_arn,
                       output_path=model_artifacts_location,
-                      code_location=custom_code_upload_location,
+                      # code_location=custom_code_upload_location,
                       train_instance_count=args.train_instance_count,
                       train_instance_type=args.train_instance_type,
                       base_job_name=args.job_name,
