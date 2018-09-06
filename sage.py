@@ -23,13 +23,15 @@ group.add_argument('--data-dir', type=str, default='atb_model_46/strat_split/dat
                     help='path to train/test pickle files')
 group.add_argument('--train-code', type=str, default='train.py',
                     help='python module containing train() function')
-group.add_argument('--source-dir', type=str, default='.',
+group.add_argument('--source-dir', type=str, default='vdcnn',
                     help='directory of other python modules imported')
 
 # Job details
 group = parser.add_argument_group('Job arguments')
 group.add_argument('job_name', type=str,
-                    help='namse of job')
+                    help='name of job')
+group.add_argument('--image-name', type=str,
+                    help='name of image repo')
 group.add_argument('--train-instance-type', type=str, default='local',
                     help='instance type for training')
 group.add_argument('--train-instance-count', type=int, default=1,
@@ -75,7 +77,7 @@ if __name__ == '__main__':
                        }
 
     # Create an estimator
-    estimator = MXNet(image_name='',
+    estimator = MXNet(image_name=args.image_name,
                       sagemaker_session=sagemaker_session if 'local' not in args.train_instance_type else local_session,
                       hyperparameters=hyperparameters,
                       entry_point=args.train_code,
