@@ -2,10 +2,6 @@
 
 image=$1
 
-mkdir -p test_dir/model
-mkdir -p test_dir/output
-
-rm test_dir/model/*
-rm test_dir/output/*
-
-docker run -v $(pwd)/test_dir:/opt/ml --rm ${image} --train ../data/ag_news --val ../data/ag_news
+# mount the input folder as if sagemaker was running the image
+docker run -v $(pwd)/test_dir/input:/opt/ml/input --rm ${image} train
+# --train input/data --val input/data

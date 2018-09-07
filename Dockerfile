@@ -22,4 +22,4 @@ ENV PATH="/opt/program:${PATH}"
 COPY vdcnn /opt/program
 WORKDIR /opt/program
 
-ENTRYPOINT ["python", "train.py"]
+ENTRYPOINT ["entry.py"]

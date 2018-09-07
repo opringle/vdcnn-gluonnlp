@@ -176,7 +176,6 @@ def train(hyperparameters, channel_input_dirs, num_gpus, **kwargs):
         print("Epoch {}: Best Validation Accuracy = {:.4}".format(e, max(accuracies)))  # sagemaker needs print for
 
 
-
 if __name__ == "__main__":
     logging.basicConfig()
     logging.getLogger().setLevel(logging.INFO)
